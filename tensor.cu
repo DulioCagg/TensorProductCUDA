@@ -1,24 +1,23 @@
 #include <stdlib.h>
 #include <stdio.h>
-#include <time.h>
 
 #define N 2
 #define M 3
 
-int a[N][M], b[N][M], c[N*N][M*M];
+int a[N][M], b[N][M], result[N*N][M*M];
 
-__global__ void tensorProduct(int rB, int cB, int *a, int *b, int *result)
+__global__
+void kernelTensorProduct(int rows, int cols, int *a, int *b, int *result)
 {
   int i = threadIdx.x;
-  int j = threadIdx.y;  
+  int j = threadIdx.y;
+  int totalCols = cols * cols;
 
-
-  //Se queda.
-  for (int k = 0; k < rB; k++)
+  for (int k = 0; k < rows; k++)
   {
-    for (int l = 0; l < cB; l++)
+    for (int l = 0; l < cols; l++)
     {
-      result[(i * rB + k) * cB * cB + (j * cB + l)] = a[i*cB+j] * b[k*cB+l];
+      result[(i * rows + k) * totalCols + (j * cols + l)] = a[i*cols+j] * b[k*cols+l];
     }
   }
 }
@@ -41,51 +40,42 @@ void initMatrix(int matrix[N][M])
   {
     for (int j = 0; j < M; j++)
     {
-      matrix[i][j] = rand() % 5;
+      matrix[i][j] = rand() % 10;
     }
   }
 }
 
-void tensorProductDevice(int rB, int cB, int *a, int *b, int *c){
-  int *aD, *bD, *cD;
-  int size = rB * cB * sizeof(int);
-  int sizeRes = rB * rB * cB * cB * sizeof(int);
+void tensorProductDevice(int rows, int cols, int *a, int *b, int *result){
+  int *aD, *bD, *resultD;
+  int size = rows * cols * sizeof(int);
+  int sizeRes = rows * rows * cols * cols * sizeof(int);
 
   dim3 bloques(1,1);
   dim3 hilos(N,M);
 
   cudaMalloc(&aD, size);
   cudaMalloc(&bD, size);
-  cudaMalloc(&cD, sizeRes);
+  cudaMalloc(&resultD, sizeRes);
 
   cudaSetDevice(0);
   cudaMemcpy(aD, a, size, cudaMemcpyHostToDevice);
   cudaMemcpy(bD, b, size, cudaMemcpyHostToDevice);
 
-  tensorProduct<<<bloques , hilos>>>(rB, cB, aD, bD, cD);
+  kernelTensorProduct<<<bloques , hilos>>>(rows, cols, aD, bD, resultD);
   
-  cudaMemcpy(c, cD, sizeRes, cudaMemcpyDeviceToHost);
+  cudaMemcpy(result, resultD, sizeRes, cudaMemcpyDeviceToHost);
   
   cudaFree(aD);
   cudaFree(bD);
-  cudaFree(cD);
-
+  cudaFree(resultD);
 }
 
 int main()
 {
-  //int rA = 2;
-  //int cA = 2;
-  //int cB = 2;
-  //int rB = 3;
-  //int rR = rA * rB;
-  //int cR = cA * cB;
-
-  srand(time(NULL));
   initMatrix(a);
   initMatrix(b);
 
-  tensorProductDevice(N, M, (int *) a, (int *) b, (int *) c);
+  tensorProductDevice(N, M, (int *) a, (int *) b, (int *) result);
 
   printf("Matrix A:\n");
   printMatrix(a);
@@ -98,12 +88,12 @@ int main()
   {
     for (int j = 0; j < M * M; j++)
     {
-      printf("%d\t", c[i][j]);
+      printf("%d\t", result[i][j]);
     }
     printf("\n");
   }
   
   free(a);
   free(b);
-  free(c);
+  free(result);
 }
