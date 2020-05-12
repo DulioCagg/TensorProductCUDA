@@ -15,7 +15,7 @@ int a[N][M], b[N][M], result[N*N][M*M];
 __global__
 void kernelTensorProduct(int rows, int cols, int *a, int *b, int *result)
 {
-  // Get number of threads
+  // Get current thread, identified by its x and y positions
   int i = threadIdx.x;
   int j = threadIdx.y;
   
